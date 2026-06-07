@@ -1,0 +1,410 @@
+
+<h2 class="sr-only">HireFlow ATS — Applicant Pipeline Dashboard with live Claude AI scoring</h2>
+<style>
+*{box-sizing:border-box;margin:0}
+button:focus{outline:2px solid var(--color-border-info);outline-offset:2px}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-thumb{background:var(--color-border-secondary);border-radius:4px}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes drawerIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+</style>
+
+<div id="app" style="min-height:600px;background:var(--color-background-tertiary);font-family:var(--font-sans);font-size:14px"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+<script>
+const {useState,useMemo,useCallback,createElement:h} = React;
+
+const JD = `Senior Frontend Engineer — HireFlow\nRequirements:\n- 4+ years React & TypeScript (must-have)\n- Next.js for SSR/SSG\n- GraphQL with Apollo Client\n- Design Systems experience\n- WCAG accessibility\n- CI/CD, Jest, Cypress\nNice to have: Kubernetes, Docker, open source contributions`;
+
+const APPLICANTS = [
+  {id:"1",name:"Priya Sharma",email:"priya.sharma@email.com",role:"Sr. Frontend Engineer",location:"Bangalore, IN",appliedAt:"2025-06-01",status:"screening",fitScore:91,fitGrade:"A",matchedSkills:["React","TypeScript","Next.js","Tailwind","GraphQL"],missingSkills:["Kubernetes"],resumeText:"Priya Sharma — Senior Frontend Engineer. 6 years experience building scalable React applications. Led frontend architecture at Razorpay for 3 years. Expert in TypeScript, Next.js, Tailwind CSS, GraphQL. Published open-source React libraries. B.Tech Computer Science, IIT Bangalore 2019.",resumeSnippet:"6 years building scalable React apps. Led frontend at Razorpay.",yearsExp:6,recommendation:"strong_yes"},
+  {id:"2",name:"Arjun Mehta",email:"arjun.m@techcorp.io",role:"Sr. Frontend Engineer",location:"Mumbai, IN",appliedAt:"2025-06-02",status:"interview",fitScore:78,fitGrade:"B",matchedSkills:["React","TypeScript","Redux","REST APIs"],missingSkills:["Next.js","GraphQL","Kubernetes"],resumeText:"Arjun Mehta — Frontend Engineer. 4 years at Amazon FAANG. Strong in React, TypeScript, Redux. Built high-traffic e-commerce UI. REST APIs, Jest. No Next.js or GraphQL experience listed.",resumeSnippet:"4 years at FAANG. Strong Redux and state management.",yearsExp:4,recommendation:"yes"},
+  {id:"3",name:"Neha Kapoor",email:"neha.k@startupmail.com",role:"Sr. Frontend Engineer",location:"Delhi, IN",appliedAt:"2025-06-03",status:"applied",fitScore:63,fitGrade:"C",matchedSkills:["React","JavaScript","CSS"],missingSkills:["TypeScript","Next.js","GraphQL","System Design"],resumeText:"Neha Kapoor — Frontend Developer. 2.5 years at two early-stage startups. React, JavaScript, CSS. No TypeScript. Building consumer apps. Good eye for design.",resumeSnippet:"2.5 years at startups. React & JS, good UI sensibility.",yearsExp:3,recommendation:"maybe"},
+  {id:"4",name:"Rohit Verma",email:"rohit.v@devmail.com",role:"Sr. Frontend Engineer",location:"Hyderabad, IN",appliedAt:"2025-06-04",status:"rejected",fitScore:38,fitGrade:"F",matchedSkills:["HTML","CSS","jQuery"],missingSkills:["React","TypeScript","Next.js","GraphQL","Modern tooling"],resumeText:"Rohit Verma — Web Developer. 5 years in web development using jQuery, PHP, HTML, CSS. Built WordPress sites. No React or modern framework experience.",resumeSnippet:"5 years jQuery/PHP. No React experience listed.",yearsExp:5,recommendation:"no"},
+  {id:"5",name:"Ananya Singh",email:"ananya.s@mail.com",role:"Sr. Frontend Engineer",location:"Pune, IN",appliedAt:"2025-06-05",status:"offer_extended",fitScore:88,fitGrade:"B",matchedSkills:["React","TypeScript","Next.js","Testing","CI/CD"],missingSkills:["GraphQL"],resumeText:"Ananya Singh — Senior Frontend Engineer. 5 years. Built design systems at Flipkart used by 200+ engineers. React, TypeScript, Next.js, Jest, Cypress, CI/CD pipelines. Test-driven development advocate.",resumeSnippet:"5 years. Built Flipkart's design system. Testing advocate.",yearsExp:5,recommendation:"yes"},
+  {id:"6",name:"Vikram Nair",email:"vikram.n@devco.in",role:"Sr. Frontend Engineer",location:"Chennai, IN",appliedAt:"2025-05-28",status:"technical",fitScore:74,fitGrade:"C",matchedSkills:["React","TypeScript","Node.js","REST"],missingSkills:["Next.js","Design Systems","GraphQL"],resumeText:"Vikram Nair — Full-Stack Engineer. 4 years. React, TypeScript, Node.js. Strong backend background, transitioning to frontend. No design systems or GraphQL experience.",resumeSnippet:"4 years full-stack. Strong Node.js background.",yearsExp:4,recommendation:"maybe"},
+  {id:"7",name:"Kavya Reddy",email:"kavya.r@techmail.co",role:"Sr. Frontend Engineer",location:"Remote",appliedAt:"2025-05-30",status:"phone_screen",fitScore:null,fitGrade:null,matchedSkills:[],missingSkills:[],resumeText:"Kavya Reddy — Senior Product Engineer. 7 years across frontend and product. Previously at Google and Swiggy. React, TypeScript, Next.js, GraphQL, design systems. Led multiple 0-to-1 product launches.",resumeSnippet:"7 years. Previously at Google & Swiggy.",yearsExp:7,recommendation:null},
+];
+
+const STATUS_CFG = {
+  applied:{label:"Applied",dot:"#94a3b8",color:"#475569",bg:"#f1f5f9"},
+  screening:{label:"Screening",dot:"#3b82f6",color:"#1d4ed8",bg:"#eff6ff"},
+  phone_screen:{label:"Phone Screen",dot:"#8b5cf6",color:"#6d28d9",bg:"#f5f3ff"},
+  technical:{label:"Technical",dot:"#f59e0b",color:"#b45309",bg:"#fffbeb"},
+  onsite:{label:"Onsite",dot:"#f97316",color:"#9a3412",bg:"#fff7ed"},
+  offer_extended:{label:"Offer Sent",dot:"#10b981",color:"#065f46",bg:"#ecfdf5"},
+  offer_accepted:{label:"Hired",dot:"#22c55e",color:"#15803d",bg:"#f0fdf4"},
+  rejected:{label:"Rejected",dot:"#ef4444",color:"#b91c1c",bg:"#fef2f2"},
+  withdrawn:{label:"Withdrawn",dot:"#9ca3af",color:"#6b7280",bg:"#f9fafb"},
+  interview:{label:"Interview",dot:"#0ea5e9",color:"#0369a1",bg:"#e0f2fe"},
+};
+
+function scoreColor(s){
+  if(s===null)return"#94a3b8";
+  if(s>=90)return"#059669";
+  if(s>=75)return"#2563eb";
+  if(s>=55)return"#d97706";
+  return"#dc2626";
+}
+function scoreBg(s){
+  if(s===null)return"#f8fafc";
+  if(s>=90)return"#ecfdf5";
+  if(s>=75)return"#eff6ff";
+  if(s>=55)return"#fffbeb";
+  return"#fef2f2";
+}
+
+function Avatar({name,size=36}){
+  const initials=name.split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase();
+  const palettes=[["#e0e7ff","#4338ca"],["#fce7f3","#be185d"],["#d1fae5","#065f46"],["#fef3c7","#92400e"],["#ffe4e6","#9f1239"],["#f0fdf4","#166534"],["#e0f2fe","#0c4a6e"],["#faf5ff","#6b21a8"]];
+  const idx=name.split("").reduce((a,c)=>a+c.charCodeAt(0),0)%palettes.length;
+  const[bg,fg]=palettes[idx];
+  return h("div",{style:{width:size,height:size,borderRadius:Math.round(size*0.28),background:bg,color:fg,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:500,fontSize:Math.round(size*0.36),flexShrink:0,border:"0.5px solid rgba(0,0,0,0.07)"}},initials);
+}
+
+function StatusBadge({status}){
+  const cfg=STATUS_CFG[status]||STATUS_CFG.applied;
+  return h("span",{style:{display:"inline-flex",alignItems:"center",gap:5,padding:"2px 9px",borderRadius:999,background:cfg.bg,color:cfg.color,fontWeight:500,fontSize:11,border:`0.5px solid ${cfg.dot}44`}},
+    h("span",{style:{width:5,height:5,borderRadius:"50%",background:cfg.dot,flexShrink:0}}),
+    cfg.label
+  );
+}
+
+function ScorePill({score,grade}){
+  if(score===null)return h("span",{style:{fontSize:11,color:"#94a3b8"}},"—");
+  return h("span",{style:{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:999,background:scoreBg(score),color:scoreColor(score),fontWeight:500,fontSize:12,border:`0.5px solid ${scoreColor(score)}33`}},
+    score,h("span",{style:{opacity:.6,fontSize:10}},grade)
+  );
+}
+
+function ScoreBar({score}){
+  if(score===null)return null;
+  const c=scoreColor(score);
+  return h("div",{style:{display:"flex",alignItems:"center",gap:7}},
+    h("div",{style:{flex:1,height:4,borderRadius:2,background:"#e2e8f0",overflow:"hidden"}},
+      h("div",{style:{height:"100%",width:`${score}%`,background:c,borderRadius:2,transition:"width 0.8s ease"}})
+    ),
+    h("span",{style:{fontSize:11,color:c,fontWeight:500,minWidth:26,textAlign:"right"}},score)
+  );
+}
+
+function SkillTag({label,type}){
+  const s={matched:{bg:"#ecfdf5",color:"#065f46",b:"#6ee7b7"},missing:{bg:"#fffbeb",color:"#92400e",b:"#fcd34d"},bonus:{bg:"#eff6ff",color:"#1d4ed8",b:"#93c5fd"}}[type]||{bg:"#f1f5f9",color:"#475569",b:"#cbd5e1"};
+  return h("span",{style:{display:"inline-block",padding:"2px 9px",background:s.bg,color:s.color,border:`0.5px solid ${s.b}`,borderRadius:6,fontSize:11,fontWeight:500}},label);
+}
+
+function Drawer({a,onClose,onRescore,scoringId,aiResults}){
+  const c=scoreColor(a.fitScore);
+  const isScoring=scoringId===a.id;
+  const ai=aiResults[a.id];
+  const recMap={strong_yes:{label:"Strong yes",color:"#065f46",bg:"#ecfdf5"},yes:{label:"Yes",color:"#1d4ed8",bg:"#eff6ff"},maybe:{label:"Maybe",color:"#92400e",bg:"#fffbeb"},no:{label:"No",color:"#b91c1c",bg:"#fef2f2"}};
+  const rec=a.recommendation?recMap[a.recommendation]:null;
+
+  const skills=ai?ai.key_skills:(a.matchedSkills.map(s=>({skill:s})));
+  const missing=ai?ai.missing_skills:a.missingSkills;
+  const bonus=ai?ai.bonus_skills:[];
+  const summary=ai?ai.summary:a.resumeSnippet;
+  const strengths=ai?ai.strengths:[];
+  const concerns=ai?ai.concerns:[];
+
+  return h("div",{style:{position:"fixed",inset:0,zIndex:50,display:"flex"}},
+    h("div",{style:{flex:1,background:"rgba(0,0,0,0.2)"},onClick:onClose}),
+    h("div",{style:{width:390,background:"var(--color-background-primary)",borderLeft:"0.5px solid var(--color-border-tertiary)",overflowY:"auto",display:"flex",flexDirection:"column",animation:"drawerIn .2s ease"}},
+      // Header
+      h("div",{style:{padding:"13px 18px",borderBottom:"0.5px solid var(--color-border-tertiary)",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,background:"var(--color-background-primary)",zIndex:10}},
+        h("span",{style:{fontWeight:500,fontSize:14,color:"var(--color-text-primary)"}},"Applicant profile"),
+        h("button",{onClick:onClose,style:{border:"none",background:"none",cursor:"pointer",padding:"4px 6px",borderRadius:6,color:"var(--color-text-secondary)",fontSize:16,lineHeight:1}},"✕")
+      ),
+      h("div",{style:{padding:18,display:"flex",flexDirection:"column",gap:18}},
+        // Identity
+        h("div",{style:{display:"flex",gap:13,alignItems:"flex-start"}},
+          h(Avatar,{name:a.name,size:46}),
+          h("div",{style:{flex:1,minWidth:0}},
+            h("div",{style:{fontWeight:500,fontSize:16,color:"var(--color-text-primary)"}},a.name),
+            h("div",{style:{fontSize:12,color:"var(--color-text-secondary)",marginTop:2}},a.email),
+            h("div",{style:{display:"flex",gap:6,marginTop:8,flexWrap:"wrap",alignItems:"center"}},
+              h(StatusBadge,{status:a.status}),
+              rec&&h("span",{style:{padding:"2px 9px",borderRadius:999,background:rec.bg,color:rec.color,fontWeight:500,fontSize:11,border:`0.5px solid ${rec.color}44`}},rec.label)
+            )
+          )
+        ),
+        // Score
+        h("div",{style:{background:"var(--color-background-secondary)",border:"0.5px solid var(--color-border-tertiary)",borderRadius:"var(--border-radius-lg)",padding:15}},
+          h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}},
+            h("span",{style:{fontSize:11,fontWeight:500,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:.5}},"AI fit score"),
+            h("button",{onClick:()=>onRescore(a.id),disabled:isScoring,style:{display:"flex",alignItems:"center",gap:5,padding:"4px 11px",borderRadius:6,border:"0.5px solid var(--color-border-secondary)",background:"var(--color-background-primary)",fontSize:11,fontWeight:500,color:"var(--color-text-secondary)",cursor:isScoring?"not-allowed":"pointer",opacity:isScoring?.6:1}},
+              isScoring?"⏳ Scoring…":"↻ Recalculate"
+            )
+          ),
+          a.fitScore!==null?h("div",null,
+            h("div",{style:{display:"flex",alignItems:"flex-end",gap:8,marginBottom:10}},
+              h("span",{style:{fontSize:38,fontWeight:500,color:c,lineHeight:1}},a.fitScore),
+              h("span",{style:{fontSize:15,color:"var(--color-text-secondary)",marginBottom:4}},"/100"),
+              a.fitGrade&&h("span",{style:{marginLeft:"auto",fontSize:26,fontWeight:500,color:c}},a.fitGrade)
+            ),
+            h("div",{style:{background:"var(--color-background-primary)",borderRadius:3,height:5,overflow:"hidden"}},
+              h("div",{style:{height:"100%",width:`${a.fitScore}%`,background:c,borderRadius:3,transition:"width 0.8s ease"}})
+            )
+          ):h("div",{style:{fontSize:13,color:"var(--color-text-secondary)"}},"Not yet scored — click Recalculate to run AI analysis.")
+        ),
+        // Meta grid
+        h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}},
+          [["Location",a.location],["Applied",new Date(a.appliedAt).toLocaleDateString("en-IN",{day:"numeric",month:"short"})],["Experience",`${a.yearsExp} years`],["Role",a.role]].map(([k,v])=>
+            h("div",{key:k,style:{background:"var(--color-background-secondary)",border:"0.5px solid var(--color-border-tertiary)",borderRadius:"var(--border-radius-md)",padding:11}},
+              h("div",{style:{fontSize:10,color:"var(--color-text-secondary)",fontWeight:500,textTransform:"uppercase",letterSpacing:.4,marginBottom:4}},k),
+              h("div",{style:{fontSize:12,fontWeight:500,color:"var(--color-text-primary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},v)
+            )
+          )
+        ),
+        // Summary
+        summary&&h("div",null,
+          h("div",{style:{fontSize:11,fontWeight:500,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:.5,marginBottom:7}},"Summary"),
+          h("div",{style:{fontSize:13,color:"var(--color-text-primary)",lineHeight:1.6,background:"var(--color-background-secondary)",border:"0.5px solid var(--color-border-tertiary)",borderRadius:"var(--border-radius-md)",padding:12}},summary)
+        ),
+        // Matched
+        skills.length>0&&h("div",null,
+          h("div",{style:{fontSize:11,fontWeight:500,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:.5,marginBottom:7}},"✓ Matched skills"),
+          h("div",{style:{display:"flex",flexWrap:"wrap",gap:5}},skills.map(s=>h(SkillTag,{key:s.skill,label:s.skill,type:"matched"})))
+        ),
+        // Missing
+        missing.length>0&&h("div",null,
+          h("div",{style:{fontSize:11,fontWeight:500,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:.5,marginBottom:7}},"⚠ Missing skills"),
+          h("div",{style:{display:"flex",flexWrap:"wrap",gap:5}},missing.map(s=>h(SkillTag,{key:s,label:s,type:"missing"})))
+        ),
+        // Bonus
+        bonus.length>0&&h("div",null,
+          h("div",{style:{fontSize:11,fontWeight:500,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:.5,marginBottom:7}},"★ Bonus skills"),
+          h("div",{style:{display:"flex",flexWrap:"wrap",gap:5}},bonus.map(s=>h(SkillTag,{key:s,label:s,type:"bonus"})))
+        ),
+        // Strengths
+        strengths.length>0&&h("div",null,
+          h("div",{style:{fontSize:11,fontWeight:500,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:.5,marginBottom:7}},"Strengths"),
+          h("div",{style:{display:"flex",flexDirection:"column",gap:6}},
+            strengths.map((s,i)=>h("div",{key:i,style:{display:"flex",gap:8,fontSize:12,color:"var(--color-text-primary)",lineHeight:1.5}},
+              h("span",{style:{color:"#059669",flexShrink:0}},"✓"),s
+            ))
+          )
+        ),
+        // Concerns
+        concerns.length>0&&h("div",null,
+          h("div",{style:{fontSize:11,fontWeight:500,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:.5,marginBottom:7}},"Concerns"),
+          h("div",{style:{display:"flex",flexDirection:"column",gap:6}},
+            concerns.map((c,i)=>h("div",{key:i,style:{display:"flex",gap:8,fontSize:12,color:"var(--color-text-primary)",lineHeight:1.5}},
+              h("span",{style:{color:"#d97706",flexShrink:0}},"⚠"),c
+            ))
+          )
+        )
+      )
+    )
+  );
+}
+
+function App(){
+  const[applicants,setApplicants]=useState(APPLICANTS);
+  const[search,setSearch]=useState("");
+  const[statusF,setStatusF]=useState("all");
+  const[scoreF,setScoreF]=useState("all");
+  const[sortKey,setSortKey]=useState("fitScore");
+  const[sortDir,setSortDir]=useState("desc");
+  const[selectedId,setSelectedId]=useState(null);
+  const[scoringId,setScoringId]=useState(null);
+  const[aiResults,setAiResults]=useState({});
+  const[errMsg,setErrMsg]=useState(null);
+  const[view,setView]=useState("table");
+
+  const selected=applicants.find(a=>a.id===selectedId)||null;
+
+  const stats=useMemo(()=>{
+    const scored=applicants.filter(a=>a.fitScore!==null);
+    return{total:applicants.length,inPipeline:applicants.filter(a=>!["rejected","withdrawn","offer_accepted"].includes(a.status)).length,avg:scored.length?Math.round(scored.reduce((s,a)=>s+(a.fitScore||0),0)/scored.length):0,strong:applicants.filter(a=>a.recommendation==="strong_yes").length,unscored:applicants.filter(a=>a.fitScore===null).length};
+  },[applicants]);
+
+  const visible=useMemo(()=>{
+    return applicants.filter(a=>{
+      const ms=!search||a.name.toLowerCase().includes(search.toLowerCase())||a.email.toLowerCase().includes(search.toLowerCase());
+      const ss=statusF==="all"||a.status===statusF;
+      const sc=scoreF==="all"?true:scoreF==="unscored"?a.fitScore===null:scoreF==="high"?(a.fitScore||0)>=75:scoreF==="mid"?(a.fitScore||0)>=55&&(a.fitScore||0)<75:(a.fitScore||0)<55&&a.fitScore!==null;
+      return ms&&ss&&sc;
+    }).sort((a,b)=>{
+      let d=0;
+      if(sortKey==="name")d=a.name.localeCompare(b.name);
+      if(sortKey==="fitScore")d=(a.fitScore||0)-(b.fitScore||0);
+      if(sortKey==="appliedAt")d=new Date(a.appliedAt)-new Date(b.appliedAt);
+      if(sortKey==="status")d=a.status.localeCompare(b.status);
+      return sortDir==="asc"?d:-d;
+    });
+  },[applicants,search,statusF,scoreF,sortKey,sortDir]);
+
+  const toggleSort=k=>{if(sortKey===k)setSortDir(d=>d==="asc"?"desc":"asc");else{setSortKey(k);setSortDir("desc");}};
+
+  const rescore=useCallback(async id=>{
+    const ap=applicants.find(a=>a.id===id);
+    if(!ap)return;
+    setScoringId(id);setErrMsg(null);
+    try{
+      const resp=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,system:"You are a senior technical recruiter. Evaluate candidate-job fit objectively. Respond ONLY with valid JSON. No markdown.",messages:[{role:"user",content:`Compare this resume against the job description. Return ONLY JSON.\n\nJOB TITLE: Senior Frontend Engineer\nJOB DESCRIPTION:\n${JD}\n\nRESUME:\n${ap.resumeText}\n\nReturn exactly:\n{"fit_rating":78,"fit_grade":"B","recommendation":"yes","key_skills":[{"skill":"React","proficiency":"expert"}],"missing_skills":["GraphQL"],"bonus_skills":[],"strengths":["Strong TypeScript"],"concerns":["No GraphQL"],"summary":"Two sentence summary."}\n\n90-100=A strong_yes, 75-89=B yes, 55-74=C maybe, 40-54=D no, 0-39=F no`}]})});
+      if(!resp.ok){const e=await resp.json().catch(()=>({}));throw new Error(e?.error?.message||`Error ${resp.status}`);}
+      const data=await resp.json();
+      const txt=data.content?.[0]?.text||"";
+      const cleaned=txt.replace(/^```(?:json)?\n?/gm,"").replace(/^```\n?/gm,"").trim();
+      const result=JSON.parse(cleaned);
+      result.fit_rating=Math.max(0,Math.min(100,Math.round(result.fit_rating)));
+      setAiResults(prev=>({...prev,[id]:result}));
+      setApplicants(prev=>prev.map(a=>a.id===id?{...a,fitScore:result.fit_rating,fitGrade:result.fit_grade||"C",recommendation:result.recommendation||"maybe",matchedSkills:result.key_skills?.map(s=>s.skill)||a.matchedSkills,missingSkills:result.missing_skills||a.missingSkills}:a));
+    }catch(e){setErrMsg(`Scoring failed: ${e.message}`);}
+    finally{setScoringId(null);}
+  },[applicants]);
+
+  const scoreAll=useCallback(async()=>{
+    const unscored=applicants.filter(a=>a.fitScore===null);
+    for(const a of unscored){await rescore(a.id);await new Promise(r=>setTimeout(r,500));}
+  },[applicants,rescore]);
+
+  const SortArr=({k})=>h("span",{style:{opacity:sortKey===k?1:.25,fontSize:10}},sortKey===k?(sortDir==="asc"?"↑":"↓"):"↓");
+
+  const kanbanCols=[{key:"applied",label:"Applied"},{key:"screening",label:"Screening"},{key:"phone_screen",label:"Phone Screen"},{key:"technical",label:"Technical"},{key:"interview",label:"Interview"},{key:"offer_extended",label:"Offer Sent"}];
+
+  return h("div",{style:{minHeight:600,background:"var(--color-background-tertiary)",fontFamily:"var(--font-sans)"}},
+    // Nav
+    h("header",{style:{background:"var(--color-background-primary)",borderBottom:"0.5px solid var(--color-border-tertiary)",position:"sticky",top:0,zIndex:30}},
+      h("div",{style:{maxWidth:1100,margin:"0 auto",padding:"0 20px",height:50,display:"flex",alignItems:"center",justifyContent:"space-between"}},
+        h("div",{style:{display:"flex",alignItems:"center",gap:9}},
+          h("div",{style:{width:28,height:28,borderRadius:7,background:"#4f46e5",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:14,fontWeight:500}},"H"),
+          h("span",{style:{fontWeight:500,fontSize:14,color:"var(--color-text-primary)",letterSpacing:-.3}},"HireFlow ATS")
+        ),
+        h("nav",{style:{display:"flex",gap:2}},
+          ["Dashboard","Jobs","Candidates","Reports"].map(t=>h("button",{key:t,style:{padding:"4px 12px",borderRadius:6,border:"none",cursor:"pointer",fontSize:12,fontWeight:500,background:t==="Dashboard"?"var(--color-background-secondary)":"transparent",color:t==="Dashboard"?"var(--color-text-primary)":"var(--color-text-secondary)"}},t))
+        )
+      )
+    ),
+    // Main
+    h("main",{style:{maxWidth:1100,margin:"0 auto",padding:"22px 20px",display:"flex",flexDirection:"column",gap:18}},
+      // Title row
+      h("div",{style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap",gap:10}},
+        h("div",null,
+          h("h1",{style:{fontSize:18,fontWeight:500,color:"var(--color-text-primary)",letterSpacing:-.3,margin:0}},"Applicant pipeline"),
+          h("p",{style:{fontSize:12,color:"var(--color-text-secondary)",marginTop:3}},"Senior Frontend Engineer · "+applicants.length+" applicants")
+        ),
+        h("div",{style:{display:"flex",gap:8,alignItems:"center"}},
+          h("div",{style:{display:"flex",border:"0.5px solid var(--color-border-tertiary)",borderRadius:"var(--border-radius-md)",overflow:"hidden"}},
+            h("button",{onClick:()=>setView("table"),style:{padding:"5px 11px",border:"none",cursor:"pointer",background:view==="table"?"var(--color-background-secondary)":"var(--color-background-primary)",color:"var(--color-text-secondary)",fontSize:13}},"⊟"),
+            h("button",{onClick:()=>setView("kanban"),style:{padding:"5px 11px",border:"none",cursor:"pointer",background:view==="kanban"?"var(--color-background-secondary)":"var(--color-background-primary)",color:"var(--color-text-secondary)",fontSize:13}},"⊞")
+          ),
+          stats.unscored>0&&h("button",{onClick:scoreAll,disabled:!!scoringId,style:{display:"flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:"var(--border-radius-md)",border:"0.5px solid #818cf8",background:"#eef2ff",color:"#4338ca",fontSize:12,fontWeight:500,cursor:scoringId?"not-allowed":"pointer",opacity:scoringId?.7:1}},"✦ Score all ("+stats.unscored+")")
+        )
+      ),
+      // Error
+      errMsg&&h("div",{style:{background:"#fef2f2",border:"0.5px solid #fca5a5",borderRadius:"var(--border-radius-md)",padding:"9px 13px",fontSize:12,color:"#b91c1c",display:"flex",alignItems:"center",gap:8}},
+        "⚠ ",errMsg,
+        h("button",{onClick:()=>setErrMsg(null),style:{marginLeft:"auto",border:"none",background:"none",cursor:"pointer",color:"#b91c1c",fontSize:14}},"✕")
+      ),
+      // Stats
+      h("div",{style:{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}},
+        [{label:"Total",value:stats.total,icon:"👥"},{label:"In pipeline",value:stats.inPipeline,icon:"📊"},{label:"Avg score",value:`${stats.avg}/100`,icon:"🎯"},{label:"Strong yes",value:stats.strong,icon:"⭐"}].map(({label,value,icon})=>
+          h("div",{key:label,style:{background:"var(--color-background-primary)",border:"0.5px solid var(--color-border-tertiary)",borderRadius:"var(--border-radius-lg)",padding:"12px 14px"}},
+            h("div",{style:{display:"flex",alignItems:"center",gap:7,marginBottom:7}},
+              h("span",{style:{fontSize:15}},icon),
+              h("span",{style:{fontSize:11,color:"var(--color-text-secondary)",fontWeight:500,textTransform:"uppercase",letterSpacing:.4}},label)
+            ),
+            h("div",{style:{fontSize:22,fontWeight:500,color:"var(--color-text-primary)",lineHeight:1}},value)
+          )
+        )
+      ),
+      // Filters
+      h("div",{style:{background:"var(--color-background-primary)",border:"0.5px solid var(--color-border-tertiary)",borderRadius:"var(--border-radius-lg)",padding:12,display:"flex",gap:9,flexWrap:"wrap",alignItems:"center"}},
+        h("div",{style:{position:"relative",flex:1,minWidth:160}},
+          h("span",{style:{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)",color:"var(--color-text-secondary)",fontSize:13}},"⌕"),
+          h("input",{value:search,onChange:e=>setSearch(e.target.value),placeholder:"Search candidates…","aria-label":"Search",style:{width:"100%",paddingLeft:30,paddingRight:11,paddingTop:6,paddingBottom:6}})
+        ),
+        h("select",{value:statusF,onChange:e=>setStatusF(e.target.value),"aria-label":"Filter by status"},
+          h("option",{value:"all"},"All statuses"),
+          Object.entries(STATUS_CFG).map(([k,v])=>h("option",{key:k,value:k},v.label))
+        ),
+        h("select",{value:scoreF,onChange:e=>setScoreF(e.target.value),"aria-label":"Filter by score"},
+          h("option",{value:"all"},"All scores"),
+          h("option",{value:"high"},"High fit (75+)"),
+          h("option",{value:"mid"},"Mid fit (55–74)"),
+          h("option",{value:"low"},"Low fit (<55)"),
+          h("option",{value:"unscored"},"Not scored")
+        ),
+        h("span",{style:{marginLeft:"auto",fontSize:11,color:"var(--color-text-secondary)"}},visible.length+" of "+applicants.length)
+      ),
+
+      // TABLE VIEW
+      view==="table"&&h("div",{style:{background:"var(--color-background-primary)",border:"0.5px solid var(--color-border-tertiary)",borderRadius:"var(--border-radius-lg)",overflow:"hidden"}},
+        h("div",{style:{display:"grid",gridTemplateColumns:"2fr 1fr 1.6fr 1fr 38px",padding:"8px 16px",borderBottom:"0.5px solid var(--color-border-tertiary)",background:"var(--color-background-secondary)"}},
+          [["name","Candidate"],["status","Status"],["fitScore","AI score"],["appliedAt","Applied"]].map(([k,l])=>
+            h("button",{key:k,onClick:()=>toggleSort(k),style:{textAlign:"left",background:"none",border:"none",cursor:"pointer",fontSize:11,fontWeight:500,color:"var(--color-text-secondary)",textTransform:"uppercase",letterSpacing:.5,display:"flex",alignItems:"center",gap:4,padding:0}},
+              l," ",h(SortArr,{k})
+            )
+          ),
+          h("span")
+        ),
+        visible.length===0&&h("div",{style:{padding:"44px 16px",textAlign:"center",color:"var(--color-text-secondary)",fontSize:13}},"No applicants match your filters."),
+        visible.map((a,i)=>{
+          const isSc=scoringId===a.id;
+          return h("div",{key:a.id,onClick:()=>setSelectedId(a.id),style:{display:"grid",gridTemplateColumns:"2fr 1fr 1.6fr 1fr 38px",padding:"10px 16px",alignItems:"center",borderBottom:i<visible.length-1?"0.5px solid var(--color-border-tertiary)":"none",cursor:"pointer"},onMouseEnter:e=>e.currentTarget.style.background="var(--color-background-secondary)",onMouseLeave:e=>e.currentTarget.style.background="transparent"},
+            // Name
+            h("div",{style:{display:"flex",alignItems:"center",gap:10,minWidth:0}},
+              h(Avatar,{name:a.name,size:32}),
+              h("div",{style:{minWidth:0}},
+                h("div",{style:{fontSize:13,fontWeight:500,color:"var(--color-text-primary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},a.name),
+                h("div",{style:{fontSize:11,color:"var(--color-text-secondary)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},a.email)
+              )
+            ),
+            // Status
+            h("div",null,h(StatusBadge,{status:a.status})),
+            // Score
+            h("div",{style:{display:"flex",flexDirection:"column",gap:4},onClick:e=>e.stopPropagation()},
+              isSc?h("div",{style:{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"#4f46e5"}},
+                h("span",{style:{display:"inline-block",animation:"spin 1s linear infinite",fontSize:14}},"⟳")," Scoring…"
+              ):a.fitScore!==null?h("div",null,
+                h(ScoreBar,{score:a.fitScore}),
+                h("div",{style:{marginTop:4}},h(ScorePill,{score:a.fitScore,grade:a.fitGrade}))
+              ):h("button",{onClick:e=>{e.stopPropagation();rescore(a.id);},style:{display:"inline-flex",alignItems:"center",gap:5,padding:"3px 10px",borderRadius:6,border:"0.5px solid #c7d2fe",background:"#eef2ff",color:"#4338ca",fontSize:11,fontWeight:500,cursor:"pointer",width:"fit-content"}},"✦ Score")
+            ),
+            // Date
+            h("div",{style:{fontSize:11,color:"var(--color-text-secondary)"}},new Date(a.appliedAt).toLocaleDateString("en-IN",{day:"numeric",month:"short"})),
+            // View btn
+            h("button",{onClick:e=>{e.stopPropagation();setSelectedId(a.id);},style:{width:26,height:26,borderRadius:6,background:"var(--color-background-secondary)",border:"0.5px solid var(--color-border-tertiary)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:"var(--color-text-secondary)",fontSize:13}},"👁")
+          );
+        })
+      ),
+
+      // KANBAN VIEW
+      view==="kanban"&&h("div",{style:{display:"flex",gap:10,overflowX:"auto",paddingBottom:8}},
+        kanbanCols.map(col=>{
+          const cards=applicants.filter(a=>a.status===col.key);
+          return h("div",{key:col.key,style:{minWidth:175,flex:"0 0 175px"}},
+            h("div",{style:{padding:"7px 11px",marginBottom:7,background:"var(--color-background-primary)",border:"0.5px solid var(--color-border-tertiary)",borderRadius:"var(--border-radius-md)",display:"flex",alignItems:"center",justifyContent:"space-between"}},
+              h("span",{style:{fontSize:12,fontWeight:500,color:"var(--color-text-primary)"}},col.label),
+              h("span",{style:{padding:"1px 7px",borderRadius:999,background:"var(--color-background-secondary)",fontSize:11,color:"var(--color-text-secondary)"}},cards.length)
+            ),
+            h("div",{style:{display:"flex",flexDirection:"column",gap:7}},
+              cards.length===0&&h("div",{style:{padding:"20px 10px",textAlign:"center",fontSize:11,color:"var(--color-text-secondary)",border:"0.5px dashed var(--color-border-tertiary)",borderRadius:"var(--border-radius-md)"}},"Empty"),
+              cards.map(a=>h("div",{key:a.id,onClick:()=>setSelectedId(a.id),style:{background:"var(--color-background-primary)",border:"0.5px solid var(--color-border-tertiary)",borderRadius:"var(--border-radius-md)",padding:11,cursor:"pointer"},onMouseEnter:e=>e.currentTarget.style.borderColor="var(--color-border-secondary)",onMouseLeave:e=>e.currentTarget.style.borderColor="var(--color-border-tertiary)"},
+                h("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:8}},
+                  h(Avatar,{name:a.name,size:26}),
+                  h("div",null,
+                    h("div",{style:{fontSize:12,fontWeight:500,color:"var(--color-text-primary)"}},a.name.split(" ")[0]),
+                    h("div",{style:{fontSize:10,color:"var(--color-text-secondary)"}},a.yearsExp+"y exp")
+                  )
+                ),
+                h(ScoreBar,{score:a.fitScore}),
+                a.fitScore===null&&h("button",{onClick:e=>{e.stopPropagation();rescore(a.id);},style:{marginTop:7,width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:5,padding:"3px 0",borderRadius:5,border:"0.5px solid #c7d2fe",background:"#eef2ff",color:"#4338ca",fontSize:11,cursor:"pointer"}},"✦ Score")
+              ))
+            )
+          );
+        })
+      ),
+
+      h("p",{style:{fontSize:11,color:"var(--color-text-secondary)",textAlign:"center"}},"AI scores generated live by Claude API · Job: Senior Frontend Engineer")
+    ),
+    selected&&h(Drawer,{a:selected,onClose:()=>setSelectedId(null),onRescore:rescore,scoringId,aiResults})
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("app")).render(h(App));
+</script>
